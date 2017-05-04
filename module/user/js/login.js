@@ -18,6 +18,6 @@ $(document).ready(function()
     $('#login-form form').submit(function()
     {
         var password = $('input:password').val();
-        if(password.length != 32 && typeof(md5) == 'function') $('input:password').val(md5(password));
+        //if(password.length != 32 && typeof(md5) == 'function') $('input:password').val(md5(password));
     });
 })

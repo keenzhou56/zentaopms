@@ -664,6 +664,7 @@ class user extends control
             if($this->post->password) $password = $this->post->password;
             if($this->get->password)  $password = $this->get->password;
 
+
             if($this->user->checkLocked($account))
             {
                 $failReason = sprintf($this->lang->user->loginLocked, $this->config->user->lockMinutes);
@@ -671,7 +672,13 @@ class user extends control
                 die(js::error($failReason));
             }
 
-            $user = $this->user->identify($account, $password);
+            if ($account !== 'admin') {
+                $ret = $this->szUserLogin($account, $password);
+            }
+
+            if ($ret === true || $account === 'admin') {
+                $user = $this->user->identify($account, $password);
+            }
 
             if($user)
             {
@@ -947,5 +954,80 @@ class user extends control
         $contactList = $this->user->getContactLists($this->app->user->account, 'withnote');
         if(empty($contactList)) return false;
         return print(html::select('', $contactList, '', "class='form-control' onchange=\"setMailto('mailto', this.value)\""));
+    }
+
+    public function szUserLogin($account, $password)
+    {
+        $ret = $this->postHttpRequest($account, $password);
+        if ($ret === false) {
+            return $ret;
+        }
+        $group = array(
+            1 => "admin", // 管理员
+            2 => "dev",  // 研发人员
+            3 => "qa",   // 测试人员
+            4 => "pm",   // 项目经理
+            5 => "po",   // 产品经理
+            6 => "td",   // 研发主管
+            7 => "pd",   // 产品主管
+            8 => "qd",   // 测试主管
+            9 => "top"   // 高层管理
+        );
+        $data = $ret['data'];
+        $user = array(
+            "account" => $account,
+            "realname" => $data['Name'],
+            "email" => $data['Alias'],
+            "gender" => $data['Gender'] === "男" ? "m" : "f",
+            "password" => $password,
+            "role" => "qa",
+            "group" => 3
+        );
+        $userInfo = $this->user->szGetUserInfo($account);
+        if ($userInfo === false) {
+            $ret = $this->user->szCreateUser($user);
+        } else if ($userInfo->password !== md5($password)){
+            $ret = $this->user->szUpdatePassword($account,$password);
+        } else {
+            $ret = true;
+        }
+        return $ret;
+    }
+
+    public function postHttpRequest($account, $password) {
+
+        //$app_id = "ac6fcc85-8c55-4855-bd0c-818dd2d8f1ae";
+        //$url = 'http://172.17.0.15:9000/v1.0/login';
+
+        $app_id = "b317ed0b-942c-5ca7-8d7a-c57b50d8bc11";
+        $url = 'http://172.17.0.15:7000/v1.0/login';
+
+        $data = array("user" => $account, "password" => $password, "app_id" => $app_id);
+        $data_string = json_encode($data);
+
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_URL, $url);
+        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 10);
+        curl_setopt($ch, CURLOPT_CUSTOMREQUEST, "POST");
+        curl_setopt($ch, CURLOPT_POSTFIELDS,$data_string);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER,true);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, array(
+                'Content-Type: application/json',
+                'Content-Length: ' . strlen($data_string))
+        );
+
+        $result = curl_exec($ch);
+        curl_close($ch);
+
+        error_log('=========\n'.$url."==".$app_id."==". $result .'=========\n' , 3, "/tmp/sz-login-errors_".date("Y-m-d").".log");
+
+        if ($result !== false) {
+            $result = json_decode($result, true);
+            if ($result["err_msg"]) {
+                return false;
+            }
+        }
+        return $result;
     }
 }

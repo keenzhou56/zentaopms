@@ -1074,4 +1074,39 @@ class userModel extends model
 
         return $strength;
     }
+
+    public function szGetUserInfo($account) {
+        $user = $this->dao->select('*')->from(TABLE_USER)->where('account')->eq($account)->fetch();
+        if($user) return $user;
+        return false;
+    }
+
+    public function szUpdatePassword($account, $password) {
+        $user = $this->getById($account);
+        if(!$user) return false;
+        $password = md5($password);
+        $this->dao->update(TABLE_USER)->set('password')->eq($password)->autoCheck()->where('account')->eq($account)->exec();
+        return !dao::isError();
+    }
+
+    public function szCreateUser($szUserInfo)
+    {
+        $user = new stdclass();
+        $user->account  = $szUserInfo['account'];
+        $user->realname = $szUserInfo['realname'];
+        $user->email    = $szUserInfo['email'];
+        $user->gender   = $szUserInfo['gender'];
+        $user->password   = md5($szUserInfo['password']);
+        $user->role   = $szUserInfo['role'];
+
+        $this->dao->insert(TABLE_USER)->data($user)->autoCheck()->exec();
+
+        if(dao::isError()) return false;
+
+        $userGroup = new stdclass();
+        $userGroup->account = $user->account;
+        $userGroup->group = $szUserInfo['group'];
+        $this->dao->insert(TABLE_USERGROUP)->data($userGroup)->exec();
+        return true;
+    }
 }
